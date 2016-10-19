@@ -1,0 +1,389 @@
+<html>
+  <head>
+    <script type="text/javascript">
+      var Nuts = (function() {
+        var logs = [];
+        var ui = {};
+        var logTable = null;
+        var selectedDate = null;
+        const STORAGE_PREFIX = 'NUTS-';
+        const EDIT_LOG_BTN_ID_PREFIX = 'editLogBtn';
+
+        function getSelectedDate() {
+          return selectedDate;
+        }
+
+        function getStorageKey() {
+          return STORAGE_PREFIX + getSelectedDate();
+        }
+
+        function setSelectedDate(newDateStr) {
+          selectedDate = newDateStr;
+          logs = localStorage[getStorageKey()] ? JSON.parse(localStorage[getStorageKey()]) : [];
+          if(ui && ui.logTable) {
+            updateLogUI();
+            ui.headerText.innerHTML = newDateStr;
+            ui.foodInput.value = "";
+            ui.nutrientAmountInput.value = "";
+
+          }
+        }
+
+        function getStoredLogDates() {
+          var resultArray = [];
+          for(var storageItem in localStorage) {
+            if(storageItem.startsWith(STORAGE_PREFIX)) {
+              var storageDate = storageItem.slice(STORAGE_PREFIX.length);
+              resultArray.push(storageDate);
+            }
+          }
+          return resultArray;
+        }
+
+        function init(newDateStr) {
+          setSelectedDate(newDateStr);
+
+          ui.logTable = document.querySelector('#logTable');
+          ui.nutrientTotalLabel = document.querySelector('#nutrientTotal');
+          ui.foodInput = document.querySelector('#food');
+          ui.nutrientAmountInput = document.querySelector('#nutAmt');
+          ui.dateMenu = document.querySelector('#dateMenu');
+          ui.menuPanel = document.querySelector('#menuPanel');
+          ui.headerText = document.querySelector('#headerText');
+          ui.headerText.addEventListener('click', headerTextClicked);
+
+          updateLogUI();
+        }
+
+        function addLog(log) {
+          if(!log) return;
+          if(!log.date) {
+            log.date = getSelectedDate();
+          }
+          logs.push(log);
+          localStorage[getStorageKey()] = JSON.stringify(logs);
+          updateLogUI();
+          ui.foodInput.value = "";
+          ui.nutrientAmountInput.value = "";
+        };
+
+        /** Using the tbody instead of the table allows us to replace all rows in 1 shot
+        *   Assumes we use only the table's first tbody */
+        function getLogTableTBody() {
+            return ui.logTable.tBodies[0];
+        }
+
+        function clearLogTableRows() {
+          var newTBody = document.createElement('tbody');
+          getLogTableTBody().parentNode.replaceChild(newTBody, getLogTableTBody());
+        }
+
+        function getNutrientTotal() {
+            var total = 0;
+            for(var i in logs) {
+              total += Number(logs[i].nutrientAmount);
+            }
+            return total;
+        }
+
+        function editLogClicked() {
+          var idx = this.id.replace(EDIT_LOG_BTN_ID_PREFIX, "");
+          //TODO don't refer to the DOM directly here
+          ui.foodInput.value = logs[idx].food;
+          ui.nutrientAmountInput.value = logs[idx].nutrientAmount;
+          logs.splice(idx, 1);
+          updateLogUI();
+        }
+
+        function dateMenuItemClicked() {
+          setSelectedDate(this.innerHTML);
+        }
+
+        function headerTextClicked() {
+            showDateMenu();
+        }
+
+        function showDateMenu() {
+          var logDates = getStoredLogDates();
+          console.log(logDates);
+          for(var i in logDates) {
+            var newListItem = document.createElement('li');
+            var newAnchor = document.createElement('a');
+            newAnchor.innerHTML = logDates[i];
+            newAnchor.href = "#";
+            newAnchor.addEventListener('click', dateMenuItemClicked);
+            newListItem.appendChild(newAnchor);
+            ui.dateMenu.appendChild(newListItem);
+          }
+        }
+
+        function updateLogUI() {
+          //var rowIdx = 2;
+          clearLogTableRows();
+          for(var logIdx=0;logIdx<logs.length;logIdx++) {
+            var row = getLogTableTBody().insertRow(logIdx);
+            var colIdx = 0;
+            row.insertCell(0).innerHTML = logs[logIdx].food;
+            row.insertCell(1).innerHTML = logs[logIdx].nutrientAmount;
+            var btn = document.createElement("button");
+            btn.id = EDIT_LOG_BTN_ID_PREFIX + logIdx;
+            btn.addEventListener("click", editLogClicked);
+            //btn.innerHTML = "Edit";
+            btn.className = "editBtn";
+            row.insertCell(2).appendChild(btn);
+          }
+          ui.nutrientTotalLabel.innerHTML = getNutrientTotal();
+        };
+
+        /** expose testInterface to give access to necessary internals. Designed specifically for testing.
+        * Although preferable to brussel sprouts, this approach is still bittersweet and
+        * I'm not sure if it's a good idea yet - RWW 2016.10.12 */
+        // function testInterface() {
+        //     return {
+        //       init: init,
+        //       addLog: addLog,
+        //       storageKey: storageKey,
+        //       logTable: logTable
+        //     }
+        // };
+
+        return {
+          init: init,
+          addLog: addLog,
+          STORAGE_PREFIX: STORAGE_PREFIX,
+          storageKey: getStorageKey,
+          selectedDate: getSelectedDate,
+          setSelectedDate: setSelectedDate,
+          nutrientTotal: getNutrientTotal,
+          EDIT_LOG_BTN_ID_PREFIX: EDIT_LOG_BTN_ID_PREFIX,
+          getStoredLogDates: getStoredLogDates
+        };
+      }());
+
+      var Foods = (function() {
+          var foods = [];
+
+          function getStorageKey() {
+            return Nuts.STORAGE_PREFIX + 'foods';
+          }
+
+          function init() {
+            foods = localStorage[getStorageKey()] ? JSON.parse(localStorage[getStorageKey()]) : [];
+
+          }
+
+          function get() {
+            return foods; //maybe we should return a copy to protect the list
+          }
+
+          function findByName() {
+
+          }
+      }());
+
+      var SmokeTest = (function() {
+
+        function init(testSuite) {
+          console.assert(testSuite.runTests);
+          var btn = document.createElement("BUTTON");
+          btn.addEventListener("click", testSuite.runTests);
+          var testDiv = document.createElement("div");
+          var textNode = document.createTextNode("Run Tests");
+          btn.appendChild(textNode);
+          testDiv.appendChild(btn);
+          document.body.appendChild(testDiv);
+        }
+
+        return { init: init }
+      }());
+
+      /** Unlike unit tests, these smoketests are not necessarily designed to be
+      * stateless for each test method, but maintaining state through the entire suite
+      * of tests is ok, as long as you clean up at the end.
+      */
+      var NutsSmokeTest = (function(Nuts) {
+        var ui = {};
+        var sep31 = '2016-09-31';
+        var leapLeapDay = '2016-02-30';
+
+        function setup() {
+          cleanup(); //just in case. This won't hurt anything right now
+          Nuts.init(sep31); //use a fake date so it won't interfere with test data
+        }
+
+        function cleanup() {
+          localStorage.removeItem(Nuts.STORAGE_PREFIX + sep31); //clear data
+          localStorage.removeItem(Nuts.STORAGE_PREFIX + leapLeapDay); //clear data
+        }
+
+        function runTests() {
+          setup();
+          shouldAddLog();
+          shouldSetDate();
+          shouldCalcNutrientTotal();
+          shouldPopulateInputsOnEditClick();
+          shouldClearInputsOnAddClick();
+          shouldListStoredLogDates();
+          shouldDisplayDateMenu();
+          cleanup();
+        }
+
+        function shouldAddLog() {
+          var testLog = {"food":"Milk (test)", "nutrientAmount":"3.4"};
+          Nuts.addLog(testLog);
+          var storageStr = localStorage[Nuts.storageKey()];
+          console.assert(storageStr);
+          var resultLogs = JSON.parse(storageStr);
+          console.assert(resultLogs[0].food === testLog.food, storageStr, resultLogs[0].food, testLog.food);
+          var logTable = document.querySelector('#logTable');
+          console.assert(logTable.rows.length === 3, {"logTable.rows.length": logTable.rows.length}  );
+        }
+
+        function shouldSetDate() {
+          // var testLog = {"food":"Milk (test)", "nutrientAmount":"3.4"};
+          // Nuts.addLog(testLog);
+
+          console.assert(Nuts.selectedDate() === sep31, Nuts.selectedDate());
+        }
+
+        function shouldCalcNutrientTotal() {
+          Nuts.addLog({"food":"rice (test)","nutrientAmount":"2.4"});
+          console.assert(Nuts.nutrientTotal() === 5.8, Nuts.nutrientTotal());
+        }
+
+        function shouldPopulateInputsOnEditClick() {
+          document.querySelector('#' + Nuts.EDIT_LOG_BTN_ID_PREFIX + '0').click();
+          console.assert(document.querySelector('#food').value);
+        }
+
+        function shouldClearInputsOnAddClick() {
+          document.querySelector('#addButton').click();
+          console.assert(!document.querySelector('#food').value);
+        }
+
+        function shouldListStoredLogDates() {
+          Nuts.setSelectedDate(leapLeapDay);
+          Nuts.addLog({"food":"apple (test)","nutrientAmount":"0.5"});
+          var storedLogDates = Nuts.getStoredLogDates();
+          console.assert(storedLogDates.length === 2, Nuts.getStoredLogDates());
+          console.assert(storedLogDates[0] === leapLeapDay,storedLogDates[0],leapLeapDay);
+        }
+
+        function shouldDisplayDateMenu() {
+          document.querySelector("#headerText").click();
+          console.assert(document.querySelectorAll("#dateMenu li").length > 0, document.querySelectorAll("#dateMenu li"));
+        }
+
+        return {
+          runTests: runTests
+        }
+
+      }(Nuts));
+
+
+      window.addEventListener("load", function() {
+        SmokeTest.init(NutsSmokeTest);
+        Nuts.init(new Date().toISOString().substr(0,10));
+        //Nuts.init(document.querySelector('#logTable'));
+        // var foodsList = localStorage.foods ? JSON.parse(localStorage.foods) : [];
+        document.querySelector('#addButton').addEventListener("click", function(){
+          Nuts.addLog({"food":document.querySelector('#food').value,
+              "nutrientAmount":document.querySelector('#nutAmt').value});
+        });
+        document.querySelector('#headerText').innerHTML = Nuts.selectedDate();
+        document.querySelector('#nutrientTotal').innerHTML = Nuts.nutrientTotal();
+      });
+
+      /** DONE BANE **********************
+      * (name releases after sith lords ;) )
+      * smoke test suite
+      * display date
+      * display nutrient total
+      * dynamic date (currently hard-coded; default to current date)
+      * copy & paste data (test on a mobile device)
+      * edit/delete a row
+      * critical styling only (maybe only page header)
+      * empty the input boxes after clicking add
+
+      ** TODO MAUL ****************************
+      * release to heroku
+      * * DONE ************
+      * I think it might be better to add the ui elements from a method within Nuts rather than passing them in? Can't really see any reason to pass them in.
+      * nav menu: select a date or enter a date, settings, nutrient summary page
+      * date change event
+      * copy/paste copies & pastes the 'Edit' button text too. How to avoid? Use an icon instead of text. Use a span styled as a button? Is there a property to fix this? Or separate print page?
+      *
+      ** TODO VADER ***************************
+      * custom food list
+      * change nutrient amt to food amt
+      * calculate nutrient amt from food amt
+      * release to heroku
+      * create phonegap app
+
+      * TODO Later releases ******************** (Tyranus, Caedus, Sidious, then use villian names: Palpatine, Dooku, Grievous, Snoke, Kylo, Jabba)
+      * put date menu on the left; slide the menu from the left like inbox. Thus for
+      * PCs, it will appear as a menu, but for phones it will be like a new page.
+      * prevent it from adding blank recs
+      * move addEventListener so all we need to do is call init to set up Nuts //https://css-tricks.com/how-do-you-structure-javascript-the-module-pattern-edition/
+      * separate modules into their own files
+      * print/copy/paste options
+      * email/text info to doctor / office: KISS to start; goal is to utilize phone's contacts. If we can just generate a mailto link, that might give us what we need.
+      * contact(s) info page for sending the diet records (doctor's/nutritionists email)
+      * unit test suite // https://code.tutsplus.com/tutorials/testing-your-javascript-with-jasmine--net-21229
+      * manual add
+      * the code is getting a little bit long, maybe we should split into a ui manager and a storage manager?
+      * semi-automatic add (button to add log and to add food - or checkbox - or maybe a tap and hold button dropdown is best)
+      * monetization: ads? donations? in-app purchases like predefined list? I think I like donations. Make sure we have a donation page.
+      * predefined food list
+      * add on enter
+      * auto-add to custom food list if used more than 3 times? Then we would need a precustomlist, but it could be a good idea.
+      * smart predefined list - send custom lists to server and keep the most popular options
+      * nutrient summary page
+      * style & layout
+      * search the database silently in the background when a food is not found locally; add it to local.
+      * add an image to the edit button
+      * more attractive interface (possibly using very lightweight graphics)
+      * provide a more flexible init() method. If they don't pass in UI components, try to guess them or at least assume a name
+      * create a more dynamic layout
+      */
+    </script>
+    <style>
+      .field {
+        display:inline-block;
+      }
+      input {
+        display:block;
+      }
+      #headerText {
+        display: inline-block;
+        width: 200px; //TODO find something better than hard-coding this
+        text-align: center;
+        padding-left: 100px;
+      }
+      .editBtn {
+        padding: 10;
+        border: thin solid lightgray;
+        border-radius: 5px;
+        background: lavender url("pencil.png") no-repeat center center;
+        vertical-align:top;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div>
+      <div id="header"><a id="headerText" href="#">Menu</a><span id="nutrientTotal">Nutrient Total</span></div>
+      <div id="logPane">
+        <table id="logTable">
+          <thead><tr><th>Food</th><th>Nut (g)</th></tr>
+          <tr>
+              <th><input id="food"/></th><th><input id="nutAmt"/></th>
+              <th><button id="addButton">Add</button></th>
+          </tr></thead>
+          <tbody id="logTBody"><tr/></tbody>
+        </table>
+      </div>
+      <nav id="menuPanel" role="navigation"><ul id="dateMenu" /></nav>
+    </div>
+  </body>
+</html>
