@@ -1,0 +1,8 @@
+task copyToLib(type: Copy) {
+    into "$buildDir/lib"
+    from(configurations.all)
+}
+
+task stage {
+	dependsOn copyToLib
+}
